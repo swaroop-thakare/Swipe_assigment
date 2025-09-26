@@ -1,21 +1,21 @@
-const OpenAI = require('openai');
+const { CohereClient } = require('cohere-ai');
 
 class AIService {
   constructor() {
-    this.apiKey = process.env.OPENAI_API_KEY || 'JFViwQlwoSEqwMxWsZJcVAFNvQ67cXy50U40FDdB-';
-    this.model = process.env.OPENAI_MODEL || 'gpt-4';
-    this.maxTokens = parseInt(process.env.OPENAI_MAX_TOKENS) || 1000;
+    this.apiKey = process.env.COHERE_API_KEY || 'okkiee-your_cohere_api_key_here';
+    this.model = process.env.COHERE_MODEL || 'command';
+    this.maxTokens = parseInt(process.env.COHERE_MAX_TOKENS) || 1000;
     
-    if (this.apiKey && this.apiKey !== 'your_openai_api_key_here') {
-      this.openai = new OpenAI({
-        apiKey: this.apiKey
+    if (this.apiKey && this.apiKey !== 'okkiee-your_cohere_api_key_here') {
+      this.cohere = new CohereClient({
+        token: this.apiKey
       });
       this.isAvailable = true;
-      console.log('✅ AI service initialized with API key');
+      console.log('✅ Cohere AI service initialized with API key');
     } else {
-      this.openai = null;
+      this.cohere = null;
       this.isAvailable = false;
-      console.warn('⚠️  OpenAI API key not configured. Using fallback AI simulation.');
+      console.warn('⚠️  Cohere API key not configured. Using fallback AI simulation.');
     }
   }
 
@@ -44,14 +44,14 @@ class AIService {
         }
       ]`;
 
-      const response = await this.openai.chat.completions.create({
+      const response = await this.cohere.generate({
         model: this.model,
-        messages: [{ role: 'user', content: prompt }],
+        prompt: prompt,
         max_tokens: this.maxTokens,
         temperature: 0.7
       });
 
-      const content = response.choices[0].message.content;
+      const content = response.generations[0].text;
       const questions = JSON.parse(content);
       
       // Validate and format questions
@@ -149,14 +149,14 @@ Return JSON with this structure:
   "improvements": ["List of areas to improve"]
 }`;
 
-      const response = await this.openai.chat.completions.create({
+      const response = await this.cohere.generate({
         model: this.model,
-        messages: [{ role: 'user', content: prompt }],
+        prompt: prompt,
         max_tokens: 500,
         temperature: 0.3
       });
 
-      const content = response.choices[0].message.content;
+      const content = response.generations[0].text;
       const result = JSON.parse(content);
       
       return {
@@ -207,7 +207,7 @@ Keep it concise but comprehensive (300-500 words).`;
         temperature: 0.5
       });
 
-      return response.choices[0].message.content;
+      return response.generations[0].text;
 
     } catch (error) {
       console.error('Error generating summary:', error);
@@ -241,7 +241,7 @@ If any field is not found or unclear, set it to null.`;
         temperature: 0.1
       });
 
-      const content = response.choices[0].message.content;
+      const content = response.generations[0].text;
       return JSON.parse(content);
 
     } catch (error) {
@@ -276,6 +276,66 @@ If any field is not found or unclear, set it to null.`;
     };
   }
 
+  async evaluateInterview(interview) {
+    try {
+      const candidate = interview.candidateId;
+      const questions = interview.questions;
+      const answers = interview.answers;
+      
+      const prompt = `Evaluate this completed interview session:
+
+Candidate: ${candidate.name}
+Email: ${candidate.email}
+
+Interview Questions and Answers:
+${questions.map((q, i) => `
+Question ${i + 1} (${q.difficulty}): ${q.text}
+Answer: ${answers[i]?.answer || 'No answer provided'}
+Time Spent: ${answers[i]?.timeSpent || 0} seconds
+`).join('\n')}
+
+Generate a comprehensive evaluation including:
+1. Overall Score (0-100)
+2. Performance Level (Excellent/Good/Fair/Needs Improvement)
+3. Technical Skills Assessment
+4. Communication Skills
+5. Problem-Solving Ability
+6. Time Management
+7. Strengths and Weaknesses
+8. Hiring Recommendation
+9. Areas for Development
+
+Return JSON with this structure:
+{
+  "score": 85,
+  "performanceLevel": "Good",
+  "technicalSkills": "Strong in React and Node.js, needs improvement in system design",
+  "communication": "Clear and articulate, good at explaining concepts",
+  "problemSolving": "Shows good analytical thinking, could improve on complex scenarios",
+  "timeManagement": "Effective use of time, completed all questions within limits",
+  "strengths": ["Strong technical foundation", "Good communication", "Problem-solving approach"],
+  "weaknesses": ["Limited system design experience", "Could improve on complex scenarios"],
+  "recommendation": "Consider for next round",
+  "developmentAreas": ["System design", "Advanced algorithms", "Leadership skills"],
+  "summary": "Comprehensive summary of the candidate's performance..."
+}`;
+
+      const response = await this.cohere.generate({
+        model: this.model,
+        prompt: prompt,
+        max_tokens: 1000,
+        temperature: 0.3
+      });
+
+      const content = response.generations[0].text;
+      return JSON.parse(content);
+
+    } catch (error) {
+      console.error('Error evaluating interview:', error);
+      return this.fallbackEvaluation(interview);
+    }
+  }
+
   fallbackSummary(candidate, scores) {
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
     
@@ -293,6 +353,33 @@ ${performance === 'Excellent' ? 'Strong candidate with excellent technical skill
   'Candidate requires significant improvement in technical and communication skills.'}
 
 Recommendation: ${avgScore >= 60 ? 'Consider for next round' : 'Not recommended for this role'}`;
+  }
+
+  fallbackEvaluation(interview) {
+    const candidate = interview.candidateId;
+    const answers = interview.answers;
+    const totalAnswers = answers.length;
+    const avgAnswerLength = answers.reduce((sum, a) => sum + (a.answer?.length || 0), 0) / totalAnswers;
+    
+    let score = 50;
+    if (avgAnswerLength > 100) score += 20;
+    if (totalAnswers === interview.questions.length) score += 15;
+    
+    const performance = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Needs Improvement';
+    
+    return {
+      score: Math.min(100, score),
+      performanceLevel: performance,
+      technicalSkills: 'Assessment based on response quality and completeness',
+      communication: 'Evaluated based on answer clarity and structure',
+      problemSolving: 'Assessed through question responses and approach',
+      timeManagement: 'Based on completion of questions within time limits',
+      strengths: avgAnswerLength > 100 ? ['Detailed responses', 'Good communication'] : ['Participated in interview'],
+      weaknesses: avgAnswerLength < 50 ? ['Limited detail in responses'] : [],
+      recommendation: score >= 60 ? 'Consider for next round' : 'Not recommended',
+      developmentAreas: ['Technical skills', 'Communication', 'Problem-solving'],
+      summary: `Candidate ${candidate.name} completed the interview with ${performance.toLowerCase()} performance. ${score >= 60 ? 'Shows potential for the role.' : 'May need additional development.'}`
+    };
   }
 }
 

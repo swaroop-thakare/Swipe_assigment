@@ -3,6 +3,7 @@ const router = express.Router();
 const Interview = require('../models/Interview');
 const Candidate = require('../models/Candidate');
 const aiService = require('../services/aiService');
+const { v4: uuidv4 } = require('uuid');
 
 // Get interview by ID
 router.get('/:id', async (req, res) => {
@@ -270,5 +271,193 @@ async function completeInterview(interview) {
     throw error;
   }
 }
+
+// Start new interview session
+router.post('/start-interview', async (req, res) => {
+  try {
+    const { candidateId } = req.body;
+    
+    if (!candidateId) {
+      return res.status(400).json({ error: 'Candidate ID is required' });
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ error: 'Candidate not found' });
+    }
+
+    // Generate unique session ID
+    const sessionId = uuidv4();
+    
+    // Generate AI questions using Cohere
+    const questions = await aiService.generateQuestions('full-stack developer');
+    
+    // Create interview session
+    const interview = new Interview({
+      candidateId,
+      sessionId,
+      questions,
+      status: 'active',
+      currentQuestionIndex: 0,
+      answers: []
+    });
+
+    await interview.save();
+
+    // Update candidate status
+    candidate.interviewStatus = 'in_progress';
+    candidate.lastActivityAt = new Date();
+    await candidate.save();
+
+    // Return first question
+    const firstQuestion = questions[0];
+    
+    res.json({
+      sessionId,
+      interviewId: interview._id,
+      currentQuestion: {
+        number: 1,
+        text: firstQuestion.text,
+        difficulty: firstQuestion.difficulty,
+        timeLimit: firstQuestion.timeLimit,
+        category: firstQuestion.category
+      },
+      totalQuestions: questions.length,
+      message: 'Interview started successfully'
+    });
+
+  } catch (error) {
+    console.error('Error starting interview:', error);
+    res.status(500).json({ error: 'Failed to start interview' });
+  }
+});
+
+// Get next question
+router.post('/next-question', async (req, res) => {
+  try {
+    const { sessionId, previousAnswer, questionNumber } = req.body;
+    
+    if (!sessionId || !previousAnswer || !questionNumber) {
+      return res.status(400).json({ 
+        error: 'Session ID, previous answer, and question number are required' 
+      });
+    }
+
+    const interview = await Interview.findOne({ sessionId });
+    if (!interview) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (interview.status !== 'active') {
+      return res.status(400).json({ error: 'Interview is not active' });
+    }
+
+    // Save previous answer
+    const answerData = {
+      questionIndex: questionNumber - 1,
+      answer: previousAnswer,
+      timeSpent: 0, // This would be calculated from frontend timer
+      autoSubmitted: false,
+      submittedAt: new Date()
+    };
+
+    interview.answers.push(answerData);
+    interview.currentQuestionIndex = questionNumber;
+    interview.lastActivityAt = new Date();
+
+    // Check if interview is complete
+    if (questionNumber >= interview.questions.length) {
+      interview.status = 'completed';
+      interview.completedAt = new Date();
+      await interview.save();
+
+      return res.json({
+        isComplete: true,
+        message: 'Interview completed successfully'
+      });
+    }
+
+    // Get next question
+    const nextQuestion = interview.questions[questionNumber];
+    
+    await interview.save();
+
+    res.json({
+      currentQuestion: {
+        number: questionNumber + 1,
+        text: nextQuestion.text,
+        difficulty: nextQuestion.difficulty,
+        timeLimit: nextQuestion.timeLimit,
+        category: nextQuestion.category
+      },
+      isComplete: false,
+      progress: {
+        current: questionNumber + 1,
+        total: interview.questions.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting next question:', error);
+    res.status(500).json({ error: 'Failed to get next question' });
+  }
+});
+
+// Evaluate completed interview
+router.post('/evaluate', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    const interview = await Interview.findOne({ sessionId })
+      .populate('candidateId', 'name email');
+    
+    if (!interview) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    if (interview.status !== 'completed') {
+      return res.status(400).json({ error: 'Interview is not completed' });
+    }
+
+    // Generate AI evaluation using Cohere
+    const evaluation = await aiService.evaluateInterview(interview);
+    
+    // Update interview with evaluation
+    interview.evaluation = evaluation;
+    interview.evaluatedAt = new Date();
+    await interview.save();
+
+    // Update candidate status
+    const candidate = await Candidate.findById(interview.candidateId);
+    if (candidate) {
+      candidate.interviewStatus = 'completed';
+      candidate.finalScore = evaluation.score;
+      candidate.lastActivityAt = new Date();
+      await candidate.save();
+    }
+
+    res.json({
+      evaluation,
+      candidate: {
+        name: candidate.name,
+        email: candidate.email
+      },
+      interview: {
+        sessionId: interview.sessionId,
+        completedAt: interview.completedAt,
+        totalQuestions: interview.questions.length,
+        totalAnswers: interview.answers.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error evaluating interview:', error);
+    res.status(500).json({ error: 'Failed to evaluate interview' });
+  }
+});
 
 module.exports = router;

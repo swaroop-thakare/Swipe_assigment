@@ -98,8 +98,21 @@ router.post('/', async (req, res) => {
     // Check if candidate already exists
     const existingCandidate = await Candidate.findOne({ email });
     if (existingCandidate) {
-      return res.status(409).json({ 
-        error: 'Candidate with this email already exists' 
+      // Update existing candidate with new data
+      existingCandidate.name = name || existingCandidate.name;
+      existingCandidate.phone = phone || existingCandidate.phone;
+      existingCandidate.profileData = {
+        extractedFields: { name: existingCandidate.name, email: existingCandidate.email, phone: existingCandidate.phone },
+        missingFields: [],
+        isComplete: true
+      };
+      existingCandidate.lastActivityAt = new Date();
+      
+      await existingCandidate.save();
+      
+      return res.json({
+        candidate: existingCandidate,
+        message: 'Candidate profile updated successfully'
       });
     }
 
