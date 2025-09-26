@@ -1,0 +1,17 @@
+# Vercel Environment Variables
+# Add these in your Vercel dashboard under Settings > Environment Variables
+
+# Database
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ai-interview
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Google Meet Configuration
+GOOGLE_MEET_API_KEY=your_google_meet_api_key_here
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your_service_account_email@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY=your_private_key_here
+GOOGLE_CALENDAR_ID=primary
+
+# Application
+NODE_ENV=production

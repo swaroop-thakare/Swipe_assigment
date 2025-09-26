@@ -12,7 +12,7 @@ class WebSocketService {
       return;
     }
 
-    const serverUrl = process.env.REACT_APP_WS_URL || 'http://localhost:5001';
+    const serverUrl = process.env.REACT_APP_WS_URL || window.location.origin;
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
