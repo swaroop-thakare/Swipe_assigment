@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "source": ".",
+    "runtime": "python311"
+  },
+  "hosting": {
+    "public": "public",
+    "rewrites": [
+      {
+        "source": "**",
+        "function": "resume-parser"
+      }
+    ]
+  }
+}

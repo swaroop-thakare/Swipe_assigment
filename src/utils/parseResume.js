@@ -1,8 +1,13 @@
 import * as pdfjsLib from 'pdfjs-dist'
 import mammoth from 'mammoth'
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+// Use a simple worker configuration that works
+try {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+} catch (error) {
+  // Fallback: disable worker
+  pdfjsLib.GlobalWorkerOptions.workerSrc = null
+}
 
 export const parsePDF = async (file) => {
   try {
@@ -20,7 +25,14 @@ export const parsePDF = async (file) => {
     return extractProfileInfo(fullText)
   } catch (error) {
     console.error('Error parsing PDF:', error)
-    throw new Error('Failed to parse PDF file')
+    // Return a fallback profile that prompts for manual entry
+    return {
+      name: '',
+      email: '',
+      phone: '',
+      _fallback: true,
+      _error: 'PDF parsing failed. Please enter information manually.'
+    }
   }
 }
 

@@ -2,22 +2,40 @@ import React, { useState } from 'react'
 import { Upload, Button, Card, Form, Input, message, Spin } from 'antd'
 import { UploadOutlined, FileTextOutlined } from '@ant-design/icons'
 import { parsePDF, parseDOCX } from '../utils/parseResume'
+import { parsePDFWithPython, parseDOCXWithPython, checkPythonParserHealth } from '../utils/pythonParser'
+import MissingDetailsChatbot from './MissingDetailsChatbot'
 
 const ResumeUploader = ({ onProfileExtracted, onManualInput }) => {
   const [loading, setLoading] = useState(false)
   const [extractedProfile, setExtractedProfile] = useState(null)
+  const [showChatbot, setShowChatbot] = useState(false)
   const [form] = Form.useForm()
 
   const handleFileUpload = async (file) => {
     setLoading(true)
     try {
+      // Check if Python parser is available
+      const pythonParserAvailable = await checkPythonParserHealth()
+      
       let profile
       if (file.type === 'application/pdf') {
-        profile = await parsePDF(file)
+        if (pythonParserAvailable) {
+          console.log('🐍 Using Python parser for PDF')
+          profile = await parsePDFWithPython(file)
+        } else {
+          console.log('📄 Using JavaScript parser for PDF')
+          profile = await parsePDF(file)
+        }
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        profile = await parseDOCX(file)
+        if (pythonParserAvailable) {
+          console.log('🐍 Using Python parser for DOCX')
+          profile = await parseDOCXWithPython(file)
+        } else {
+          console.log('📝 Using JavaScript parser for DOCX')
+          profile = await parseDOCX(file)
+        }
       } else {
-        message.error('Please upload a PDF or DOCX file')
+        console.error('Please upload a PDF or DOCX file')
         return false
       }
 
@@ -29,15 +47,23 @@ const ResumeUploader = ({ onProfileExtracted, onManualInput }) => {
       if (!profile.email) missingFields.push('Email')
       if (!profile.phone) missingFields.push('Phone')
 
+      // Always populate the form with extracted information
+      form.setFieldsValue({
+        name: profile.name || '',
+        email: profile.email || '',
+        phone: profile.phone || ''
+      })
+
       if (missingFields.length === 0) {
-        message.success('Profile extracted successfully!')
+        console.log('Profile extracted successfully!')
         onProfileExtracted(profile)
       } else {
-        message.warning(`Extracted some information. Please provide: ${missingFields.join(', ')}`)
-        form.setFieldsValue(profile)
+        console.warn(`Extracted some information. Missing: ${missingFields.join(', ')}`)
+        setExtractedProfile(profile)
+        setShowChatbot(true)
       }
     } catch (error) {
-      message.error('Failed to parse resume. Please try again or enter information manually.')
+      console.error('Failed to parse resume. Please try again or enter information manually.')
       console.error('Parse error:', error)
     } finally {
       setLoading(false)
@@ -47,6 +73,16 @@ const ResumeUploader = ({ onProfileExtracted, onManualInput }) => {
 
   const handleManualSubmit = (values) => {
     onProfileExtracted(values)
+  }
+
+  const handleChatbotComplete = (completeProfile) => {
+    setShowChatbot(false)
+    onProfileExtracted(completeProfile)
+  }
+
+  const handleChatbotSkip = (profile) => {
+    setShowChatbot(false)
+    onProfileExtracted(profile)
   }
 
   const uploadProps = {
@@ -168,7 +204,7 @@ const ResumeUploader = ({ onProfileExtracted, onManualInput }) => {
         </Form>
       </div>
 
-      {extractedProfile && (
+      {extractedProfile && !showChatbot && (
         <div style={{ 
           marginTop: 16, 
           padding: 12, 
@@ -182,6 +218,16 @@ const ResumeUploader = ({ onProfileExtracted, onManualInput }) => {
           {extractedProfile.name && <p><strong>Name:</strong> {extractedProfile.name}</p>}
           {extractedProfile.email && <p><strong>Email:</strong> {extractedProfile.email}</p>}
           {extractedProfile.phone && <p><strong>Phone:</strong> {extractedProfile.phone}</p>}
+        </div>
+      )}
+
+      {showChatbot && (
+        <div style={{ marginTop: 24 }}>
+          <MissingDetailsChatbot
+            profile={extractedProfile}
+            onComplete={handleChatbotComplete}
+            onSkip={handleChatbotSkip}
+          />
         </div>
       )}
     </Card>

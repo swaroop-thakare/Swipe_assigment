@@ -14,7 +14,8 @@ const io = new Server(server, {
     origin: [
       process.env.FRONTEND_URL || "http://localhost:3000",
       "http://localhost:3001",
-      "http://localhost:3000"
+      "http://localhost:3000",
+      "https://ai-interview-frontend-mthtnqzsa-swaroop-thakares-projects.vercel.app"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
@@ -26,7 +27,8 @@ app.use(cors({
   origin: [
     process.env.FRONTEND_URL || "http://localhost:3000",
     "http://localhost:3001",
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "https://ai-interview-frontend-mthtnqzsa-swaroop-thakares-projects.vercel.app"
   ],
   credentials: true
 }));

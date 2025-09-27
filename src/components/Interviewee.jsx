@@ -6,11 +6,12 @@ import ResumeUploader from './ResumeUploader'
 import ChatWindow from './ChatWindow'
 import Timer from './Timer'
 import VideoInterview from './VideoInterview'
+import SessionInterview from './SessionInterview'
 import { 
-  addCandidate, 
+  createCandidate, 
   startInterview, 
-  submitAnswer, 
-  completeInterview 
+  submitAnswer,
+  setCurrentInterview
 } from '../features/candidatesSlice'
 import { generateQuestions, scoreAnswer, generateSummary } from '../utils/aiSimulator'
 
@@ -19,7 +20,7 @@ const { Step } = Steps
 
 const Interviewee = () => {
   const dispatch = useDispatch()
-  const { currentInterview, interviewInProgress } = useSelector(state => state.candidates)
+  const { currentInterview, interviewInProgress, currentCandidate } = useSelector(state => state.candidates)
   
   const [currentStep, setCurrentStep] = useState(0)
   const [messages, setMessages] = useState([])
@@ -78,16 +79,38 @@ const Interviewee = () => {
   }
 
   const handleProfileExtracted = (profile) => {
-    dispatch(addCandidate(profile))
-    setCurrentStep(1)
-    message.success('Profile created successfully!')
+    dispatch(createCandidate(profile)).then((result) => {
+      if (result.type.endsWith('/fulfilled')) {
+        setCurrentStep(1)
+        console.log('Profile created/updated successfully!')
+      } else {
+        console.error('Failed to create/update profile:', result.payload)
+      }
+    })
   }
 
   const handleStartInterview = () => {
-    if (!currentInterview) return
+    if (!currentCandidate) {
+      console.error('No candidate found. Please complete profile setup first.')
+      return
+    }
 
     const questions = generateQuestions()
-    dispatch(startInterview({ candidateId: currentInterview.id, questions }))
+    
+    // Create interview object
+    const interview = {
+      id: `interview_${Date.now()}`,
+      candidateId: currentCandidate._id || currentCandidate.id,
+      candidate: currentCandidate,
+      questions,
+      currentQuestionIndex: 0,
+      answers: [],
+      status: 'in_progress',
+      startTime: new Date().toISOString(),
+      completed: false
+    }
+    
+    dispatch(setCurrentInterview(interview))
     
     // Start with first question
     const firstQuestion = questions[0]
@@ -122,13 +145,21 @@ const Interviewee = () => {
     }
     setMessages(prev => [...prev, answerMessage])
 
-    // Submit answer
-    dispatch(submitAnswer({
-      candidateId: currentInterview.id,
+    // Update interview state locally
+    const updatedAnswers = [...(currentInterview.answers || []), {
       questionIndex,
       answer,
-      timeSpent
-    }))
+      timeSpent,
+      timestamp: new Date().toISOString()
+    }]
+
+    const updatedInterview = {
+      ...currentInterview,
+      answers: updatedAnswers,
+      currentQuestionIndex: questionIndex + 1
+    }
+
+    dispatch(setCurrentInterview(updatedInterview))
 
     // Move to next question or complete interview
     const nextQuestionIndex = questionIndex + 1
@@ -174,8 +205,10 @@ const Interviewee = () => {
     const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length
     const summary = generateSummary(currentInterview, currentInterview.questions, currentInterview.answers, scores)
 
-    dispatch(completeInterview({
-      candidateId: currentInterview.id,
+    // Update interview completion status
+    dispatch(setCurrentInterview({
+      ...currentInterview,
+      completed: true,
       finalScore: averageScore,
       aiSummary: summary
     }))
@@ -273,11 +306,7 @@ const Interviewee = () => {
           <Steps 
             current={currentStep} 
             items={steps}
-            style={{
-              '& .ant-steps-item': {
-                animation: 'slideInUp 0.6s ease-out'
-              }
-            }}
+            className="custom-steps"
           />
           
           {currentStep === 2 && currentInterview && (
@@ -383,25 +412,10 @@ const Interviewee = () => {
                 onInterviewComplete={handleInterviewComplete}
               />
             ) : (
-              <div>
-                {currentQuestion && (
-                  <Timer
-                    timeLimit={currentQuestion.timeLimit}
-                    onTimeUp={handleTimeUp}
-                    isActive={isAnswering}
-                  />
-                )}
-                
-                <ChatWindow
-                  messages={messages}
-                  onSendMessage={(message) => {
-                    setCurrentAnswer(message)
-                    handleAnswerSubmit(message)
-                  }}
-                  disabled={!isAnswering}
-                  placeholder="Type your answer here..."
-                />
-              </div>
+              <SessionInterview
+                candidate={currentCandidate}
+                onComplete={handleInterviewComplete}
+              />
             )}
           </div>
         )}

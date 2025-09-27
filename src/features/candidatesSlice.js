@@ -32,6 +32,20 @@ export const createCandidate = createAsyncThunk(
       const response = await apiService.createCandidate(candidateData)
       return response
     } catch (error) {
+      // If candidate already exists, try to find and return the existing candidate
+      if (error.message.includes('already exists')) {
+        try {
+          const existingCandidates = await apiService.getCandidates({ search: candidateData.email })
+          if (existingCandidates.candidates && existingCandidates.candidates.length > 0) {
+            return {
+              candidate: existingCandidates.candidates[0],
+              message: 'Using existing candidate profile'
+            }
+          }
+        } catch (findError) {
+          console.error('Error finding existing candidate:', findError)
+        }
+      }
       return rejectWithValue(error.message)
     }
   }

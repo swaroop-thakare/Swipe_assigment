@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { Layout, Tabs, message, Spin } from 'antd'
-import { UserOutlined, TrophyOutlined } from '@ant-design/icons'
+import { Layout, Tabs, message, Spin, Button, Space } from 'antd'
+import { UserOutlined, TrophyOutlined, LogoutOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
+import Login from './components/Login'
 import Interviewee from './components/Interviewee'
 import Interviewer from './components/Interviewer'
+import RecruiterDashboard from './components/RecruiterDashboard'
 import WelcomeBackModal from './components/WelcomeBackModal'
 import { fetchCandidates, setCurrentInterview, updateConnectionStatus } from './features/candidatesSlice'
 import websocketService from './services/websocket'
@@ -15,6 +17,8 @@ const { TabPane } = Tabs
 function App() {
   const [activeTab, setActiveTab] = useState('interviewee')
   const [initializing, setInitializing] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState(null)
   const dispatch = useDispatch()
   const { interviewInProgress, currentInterview, loading, error, connectionStatus } = useSelector(state => state.candidates)
   const [showWelcomeBack, setShowWelcomeBack] = useState(false)
@@ -44,7 +48,7 @@ function App() {
       
     } catch (error) {
       console.error('App initialization error:', error)
-      message.error('Failed to connect to server. Please check your connection.')
+      console.error('Failed to connect to server. Please check your connection.')
     } finally {
       setInitializing(false)
     }
@@ -72,17 +76,31 @@ function App() {
       if (currentInterview) {
         await apiService.resumeInterview(currentInterview.candidateId)
         setShowWelcomeBack(false)
-        message.success('Interview resumed!')
+        console.log('Interview resumed!')
       }
     } catch (error) {
-      message.error('Failed to resume interview')
+      console.error('Failed to resume interview')
     }
   }
 
   const handleStartNewInterview = () => {
     setShowWelcomeBack(false)
     dispatch(setCurrentInterview(null))
-    message.info('Starting new interview session')
+    console.log('Starting new interview session')
+  }
+
+  const handleLogin = (userData) => {
+    setUser(userData)
+    setIsAuthenticated(true)
+    // Use notification instead of message for better context
+    console.log(`Welcome, ${userData.username}!`)
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    setIsAuthenticated(false)
+    setActiveTab('interviewee')
+    console.log('Logged out successfully')
   }
 
   if (initializing) {
@@ -93,9 +111,18 @@ function App() {
         alignItems: 'center', 
         height: '100vh' 
       }}>
-        <Spin size="large" tip="Initializing AI Interview Platform..." />
+        <div style={{ textAlign: 'center' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16, fontSize: 16, color: '#666' }}>
+            Initializing AI Interview Platform...
+          </div>
+        </div>
       </div>
     )
+  }
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />
   }
 
   return (
@@ -159,6 +186,24 @@ function App() {
             }} />
             {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
           </div>
+          
+          <Space>
+            <span style={{ color: '#2c3e50', fontWeight: 500 }}>
+              Welcome, {user?.username}!
+            </span>
+            <Button
+              type="text"
+              icon={<LogoutOutlined />}
+              onClick={handleLogout}
+              style={{
+                color: '#667eea',
+                border: '1px solid rgba(102, 126, 234, 0.3)',
+                borderRadius: 8
+              }}
+            >
+              Logout
+            </Button>
+          </Space>
         </div>
       </Header>
       
@@ -178,13 +223,7 @@ function App() {
             activeKey={activeTab} 
             onChange={setActiveTab}
             size="large"
-            style={{
-              '& .ant-tabs-tab': {
-                padding: '16px 24px',
-                fontSize: '16px',
-                fontWeight: '600'
-              }
-            }}
+            className="custom-tabs"
             items={[
               {
                 key: 'interviewee',
@@ -215,6 +254,21 @@ function App() {
                   </span>
                 ),
                 children: <Interviewer />
+              },
+              {
+                key: 'recruiter',
+                label: (
+                  <span style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 8,
+                    padding: '8px 0'
+                  }}>
+                    <TrophyOutlined style={{ fontSize: 18 }} />
+                    Recruiter Dashboard
+                  </span>
+                ),
+                children: <RecruiterDashboard />
               }
             ]}
           />

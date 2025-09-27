@@ -15,7 +15,6 @@ import {
 import { 
   VideoCameraOutlined, 
   PhoneOutlined, 
-  MicrophoneOutlined,
   AudioOutlined,
   UserOutlined,
   ClockCircleOutlined,
@@ -346,7 +345,7 @@ const VideoInterview = ({ candidate, interview, onInterviewComplete }) => {
                   <Col span={8}>
                     <Tooltip title="Toggle Microphone">
                       <Button 
-                        icon={<MicrophoneOutlined />} 
+                        icon={<AudioOutlined />} 
                         block
                         type={isConnected ? 'primary' : 'default'}
                       >

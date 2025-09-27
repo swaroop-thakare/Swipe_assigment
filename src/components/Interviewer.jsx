@@ -271,7 +271,7 @@ const Interviewer = () => {
             prefix={<SearchOutlined />}
           />
           
-          <Button.Group>
+          <Space.Compact>
             <Button 
               type={sortBy === 'score' ? 'primary' : 'default'}
               onClick={() => setSortBy('score')}
@@ -290,13 +290,13 @@ const Interviewer = () => {
             >
               Sort by Date
             </Button>
-          </Button.Group>
+          </Space.Compact>
         </Space>
 
         <Table
           columns={columns}
           dataSource={filteredCandidates}
-          rowKey="id"
+          rowKey={(record) => record.id || record._id || Math.random().toString(36)}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,

@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD 
+    ? 'https://backend-bwykd35u1-swaroop-thakares-projects.vercel.app/api'
+    : 'http://localhost:5005/api');
 
 class ApiService {
   constructor() {
@@ -239,6 +242,32 @@ class ApiService {
 
   async joinMeeting(meetingId, userType) {
     return this.request(`/meetings/${meetingId}/join?userType=${userType}`);
+  }
+
+  // Session-based interview methods
+  async startInterviewSession(candidateId) {
+    return this.request('/interviews/start-interview', {
+      method: 'POST',
+      body: JSON.stringify({ candidateId }),
+    });
+  }
+
+  async getNextQuestion(sessionId, previousAnswer, questionNumber) {
+    return this.request('/interviews/next-question', {
+      method: 'POST',
+      body: JSON.stringify({
+        sessionId,
+        previousAnswer,
+        questionNumber
+      }),
+    });
+  }
+
+  async evaluateInterview(sessionId) {
+    return this.request('/interviews/evaluate', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    });
   }
 
   // Health check

@@ -12,7 +12,10 @@ class WebSocketService {
       return;
     }
 
-    const serverUrl = process.env.REACT_APP_WS_URL || window.location.origin;
+    const serverUrl = import.meta.env.VITE_WS_URL || 
+      (import.meta.env.PROD 
+        ? 'https://backend-bwykd35u1-swaroop-thakares-projects.vercel.app'
+        : 'http://localhost:5005');
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
